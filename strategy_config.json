@@ -1,0 +1,35 @@
+{
+  "strategy_id": "HYBRID_RSI_DIV_V3_SP500_FIXED",
+  "mode": "paper_only",
+  "universe": {
+    "sp500_csv": "universe/sp500_constituents.csv",
+    "sp500_minimum_count": 400,
+    "nasdaq_min_market_cap_usd": 1000000000,
+    "max_symbols": 2500,
+    "minimum_history_bars": 260
+  },
+  "signal": {
+    "rsi_length": 14,
+    "oversold": 30.99,
+    "overbought": 70.0,
+    "pivot_left": 3,
+    "pivot_right": 2,
+    "min_pivot_gap": 5,
+    "max_pivot_gap": 60,
+    "minimum_score": 60,
+    "search_bars": 20
+  },
+  "entry": {
+    "bullish_model": "pullback_confirmation",
+    "bearish_model": "ema9_confirmation",
+    "prime_delay_min": 6,
+    "prime_delay_max": 15
+  },
+  "risk": {
+    "starting_capital": 100000,
+    "risk_per_trade_pct": 0.5,
+    "maximum_hold_bars": 30,
+    "slippage_bps": 10,
+    "commission_bps_per_side": 1
+  }
+}

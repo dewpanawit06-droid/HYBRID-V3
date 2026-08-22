@@ -1,0 +1,65 @@
+name: Hybrid Paper Scanner V3 SP500 Fixed
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 22 * * 1-5'
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Validate source syntax
+        run: python -m py_compile scanner.py universe_loader.py
+      - name: Run deterministic tests
+        run: |
+          python universe_loader.py --self-test
+          python scanner.py --self-test
+      - name: Refresh S&P 500 CSV from non-Wikipedia source
+        run: python universe_loader.py --refresh-sp500
+      - name: Fail-fast validate S&P 500 and final universe
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from universe_loader import build_universe
+          root=Path.cwd();cfg=json.loads(Path('strategy_config.json').read_text())['universe']
+          universe,audit,issues=build_universe(root,cfg,refresh=False)
+          sp=int(audit.loc[audit.Source=='S&P 500 static CSV','Final'].iloc[0])
+          if sp < 400: raise SystemExit(f'S&P 500 validation failed: {sp}')
+          if len(universe) < 700: raise SystemExit(f'Final universe too small: {len(universe)}')
+          print(audit.to_string(index=False))
+          PY
+      - name: Run scanner
+        run: python scanner.py --out reports/Hybrid_Paper_Scanner_V3.xlsx
+      - name: Validate report
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from openpyxl import load_workbook
+          path=Path('reports/Hybrid_Paper_Scanner_V3.xlsx')
+          if not path.exists() or path.stat().st_size==0: raise SystemExit('Report missing')
+          wb=load_workbook(path,read_only=True,data_only=True)
+          required={'Daily Signal Board','Entry Ready','Waiting Setups','Expired Invalidated','Event Funnel','Universe Audit','Data Issues'}
+          missing=required.difference(wb.sheetnames)
+          if missing: raise SystemExit(f'Missing sheets: {sorted(missing)}')
+          ws=wb['Universe Audit']; rows=list(ws.iter_rows(values_only=True)); header=rows[0]; source_i=header.index('Source'); final_i=header.index('Final')
+          data={r[source_i]:r[final_i] for r in rows[1:]}
+          if int(data.get('S&P 500 static CSV',0))<400: raise SystemExit('Workbook S&P 500 count below 400')
+          print('REPORT VALIDATION PASSED',data)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Hybrid_Paper_Scanner_V3
+          path: |
+            reports/*.xlsx
+            universe/sp500_constituents.csv
+          retention-days: 30

@@ -1,0 +1,1 @@
+Upload all files to the repository root. If the hidden .github folder is not uploaded, use GitHub Add file > Create new file and set the filename to .github/workflows/daily-paper-scan.yml, then paste the content from WORKFLOW_COPY_daily-paper-scan.yml.
