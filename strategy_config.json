@@ -1,35 +1,263 @@
 {
-  "strategy_id": "HYBRID_RSI_DIV_V3_SP500_FIXED",
-  "mode": "paper_only",
-  "universe": {
-    "sp500_csv": "universe/sp500_constituents.csv",
-    "sp500_minimum_count": 400,
-    "nasdaq_min_market_cap_usd": 1000000000,
-    "max_symbols": 2500,
-    "minimum_history_bars": 260
-  },
-  "signal": {
-    "rsi_length": 14,
-    "oversold": 30.99,
-    "overbought": 70.0,
-    "pivot_left": 3,
-    "pivot_right": 2,
-    "min_pivot_gap": 5,
-    "max_pivot_gap": 60,
+  "project": "Hybrid Paper Trading Scanner",
+  "scanner_version": "3.1.0",
+  "status": "PAPER_TRACKING_ONLY",
+  "live_enabled": false,
+  "strategy": {
+    "strategy_id": "HYBRID_RSI_DIV_V1",
+    "timeframe": "Daily completed candles",
+    "setup": "RSI 14 divergence",
     "minimum_score": 60,
-    "search_bars": 20
-  },
-  "entry": {
-    "bullish_model": "pullback_confirmation",
-    "bearish_model": "ema9_confirmation",
-    "prime_delay_min": 6,
-    "prime_delay_max": 15
+    "search_bars": 20,
+    "maximum_hold_bars": 30,
+    "bullish_entry_model": "pullback_confirmation",
+    "bearish_entry_model": "ema9_confirmation",
+    "prime_trigger_delay_bars": [
+      6,
+      15
+    ],
+    "parameters_frozen_during_initial_forward_sample": true
   },
   "risk": {
-    "starting_capital": 100000,
+    "paper_starting_capital_usd": 100000,
     "risk_per_trade_pct": 0.5,
-    "maximum_hold_bars": 30,
-    "slippage_bps": 10,
-    "commission_bps_per_side": 1
-  }
+    "fixed_risk_amount_usd_initial_validation": 500,
+    "maximum_open_positions": 6,
+    "maximum_portfolio_risk_pct": 3.0,
+    "compounding_enabled_initial_validation": false,
+    "fractional_shares_enabled": false,
+    "slippage_bps_per_side": 10,
+    "commission_bps_per_side": 1,
+    "stop_distance": "max(ATR14, 2% of executed entry)",
+    "targets_r": [
+      1,
+      2,
+      3
+    ]
+  },
+  "execution_policy": {
+    "version": "1.0.0",
+    "entry": {
+      "timing": "next_session_open_after_completed_trigger_bar",
+      "reference_plan_is_not_final_fill": true,
+      "recalculate_stop_targets_quantity_from_executed_fill": true,
+      "block_if_no_valid_next_open": true,
+      "block_if_position_limit_reached": true,
+      "block_if_portfolio_risk_limit_reached": true,
+      "block_if_symbol_already_open": true,
+      "block_if_quantity_less_than_one": true
+    },
+    "partial_exit": {
+      "enabled": true,
+      "tp1_quantity_pct": 33,
+      "tp2_quantity_pct": 33,
+      "tp3_quantity_rule": "remaining_integer_shares",
+      "after_tp1_stop": "executed_entry",
+      "after_tp2_stop": "tp1_price",
+      "maximum_target_levels_per_daily_bar": 1,
+      "apply_costs_to_every_exit_leg": true,
+      "never_widen_stop": true
+    },
+    "ambiguous_daily_bar": {
+      "policy": "STOP_FIRST_CONSERVATIVE",
+      "process_order": [
+        "opening_gap",
+        "active_stop",
+        "one_active_target_level",
+        "time_exit",
+        "mark_to_market"
+      ],
+      "gap_stop_fill": "session_open_with_adverse_slippage",
+      "gap_target_fill": "session_open_bounded_by_observable_open_with_adverse_slippage",
+      "audit_flag": "AMBIGUOUS_BAR"
+    },
+    "time_exit": {
+      "maximum_hold_bars": 30,
+      "fill_rule": "next_available_open_with_adverse_slippage_after_limit_reached"
+    },
+    "short_side": {
+      "mode": "STRATEGY_SIMULATION_ONLY",
+      "borrow_cost_modeled": false,
+      "required_warning": "BORROW_COST_NOT_MODELED",
+      "track_hard_to_borrow_warning": true,
+      "track_dividend_liability_warning": true
+    }
+  },
+  "event_and_state_policy": {
+    "version": "1.0.0",
+    "event_id_canonical_fields": [
+      "strategy_id",
+      "symbol",
+      "direction",
+      "setup_date",
+      "pivot1_date",
+      "pivot2_date"
+    ],
+    "event_id_hash": "SHA-256_first_16_hex",
+    "event_id_prefix": "EVT-",
+    "fill_idempotency_fields": [
+      "event_id",
+      "action",
+      "market_date",
+      "leg"
+    ],
+    "idempotent_runs": true,
+    "append_only_event_archive": true,
+    "atomic_state_write": true,
+    "state_backup_before_commit": true,
+    "state_lock_required": true,
+    "duplicate_event_open_forbidden": true,
+    "duplicate_symbol_open_position_forbidden": true,
+    "missed_trigger_cannot_reenter_without_new_event_id": true,
+    "closed_trade_cannot_reopen_without_new_event_id": true,
+    "persistent_files": [
+      ".scanner_state/active_setups.json",
+      ".scanner_state/open_positions.json",
+      ".scanner_state/closed_trades.json",
+      ".scanner_state/missed_triggers.json",
+      ".scanner_state/event_archive.csv"
+    ]
+  },
+  "corporate_action_and_price_policy": {
+    "version": "1.0.0",
+    "indicator_price_basis": "split_adjusted_OHLC_consistent_series",
+    "execution_price_basis_backtest": "same_split_adjusted_OHLC_series",
+    "retain_raw_ohlc_for_audit": true,
+    "retain_adjustment_factor": true,
+    "split_adjust_volume": true,
+    "block_if_ohlc_adjustment_factors_mismatch": true,
+    "block_if_unexplained_extreme_discontinuity": true,
+    "symbol_change_preserves_event_id": true,
+    "merger_delisting_policy": "MANUAL_REVIEW_REQUIRED_unless_verifiable_cash_or_exchange_terms_exist",
+    "open_position_split_rule": "adjust_quantity_and_all_price_levels_preserving_economic_value"
+  },
+  "reconciliation": {
+    "version": "1.0.0",
+    "event_reconciliation": true,
+    "position_reconciliation": true,
+    "quantity_reconciliation": true,
+    "cash_reconciliation": true,
+    "pnl_reconciliation": true,
+    "workbook_to_persistent_state_reconciliation": true,
+    "fail_report_on_imbalance": true,
+    "hard_fail_conditions": [
+      "duplicate_event_id",
+      "event_in_multiple_primary_states",
+      "duplicate_open_symbol",
+      "closed_trade_present_in_open_positions",
+      "negative_remaining_quantity",
+      "open_positions_above_limit",
+      "aggregate_initial_risk_above_limit",
+      "stop_or_target_on_wrong_side",
+      "workbook_state_mismatch",
+      "fill_missing_idempotency_key",
+      "config_hash_changed_during_run",
+      "live_enabled_not_false"
+    ]
+  },
+  "universe": {
+    "primary": "S&P 500 static CSV",
+    "secondary": "Nasdaq common stocks with market cap >= USD 1B",
+    "sp500_minimum_count_gate": 400,
+    "exclude_security_types": [
+      "Warrant",
+      "Preferred",
+      "Depositary",
+      "Right",
+      "Unit",
+      "ETF",
+      "Fund",
+      "Notes Due",
+      "Bond",
+      "Debenture"
+    ],
+    "data_blocked_symbols": [
+      "MU"
+    ],
+    "separate_research_assets": [
+      "XAU/USD"
+    ]
+  },
+  "research_quality_controls": {
+    "liquidity_fields_warning_only_initial_sample": [
+      "average_daily_dollar_volume_20",
+      "average_volume_20",
+      "position_value_to_adv",
+      "zero_volume_days",
+      "gap_frequency"
+    ],
+    "market_regime_labels_observation_only": [
+      "BULL_TREND",
+      "BEAR_TREND",
+      "HIGH_VOLATILITY",
+      "LOW_VOLATILITY",
+      "RANGE_BOUND"
+    ],
+    "portfolio_concentration_warnings": [
+      "sector_risk",
+      "directional_concentration",
+      "correlation_cluster"
+    ],
+    "stress_scenarios": {
+      "base": {
+        "slippage_bps_per_side": 10,
+        "commission_bps_per_side": 1
+      },
+      "stressed": {
+        "slippage_bps_per_side": 25,
+        "commission_bps_per_side": 2
+      },
+      "severe": {
+        "slippage_bps_per_side": 50,
+        "commission_bps_per_side": 2,
+        "gap_stop_penalty": true,
+        "favorable_target_gap_assumption": false
+      }
+    },
+    "validation_method": [
+      "development",
+      "validation",
+      "locked_out_of_sample",
+      "forward_paper"
+    ],
+    "no_parameter_selection_by_in_sample_max_profit": true
+  },
+  "status_machine": [
+    "NO_SETUP",
+    "SETUP_DETECTED",
+    "WAIT_STRUCTURE",
+    "WAIT_PULLBACK",
+    "WAIT_EMA9",
+    "ENTRY_READY",
+    "ENTRY_BLOCKED_CAPACITY",
+    "ENTRY_BLOCKED_RISK",
+    "ENTRY_BLOCKED_DATA",
+    "ENTRY_BLOCKED_DUPLICATE_SYMBOL",
+    "ENTRY_BLOCKED_NO_NEXT_OPEN",
+    "MISSED_TRIGGER",
+    "OPEN_PAPER_POSITION",
+    "CLOSED_PAPER_TRADE",
+    "EXPIRED",
+    "INVALIDATED",
+    "DATA_BLOCKED"
+  ],
+  "required_report_sheets": [
+    "Daily Signal Board",
+    "Entry Ready",
+    "Open Paper Positions",
+    "Closed Paper Trades",
+    "Waiting Setups",
+    "Missed Triggers",
+    "Expired Invalidated",
+    "Event Funnel",
+    "Universe Audit",
+    "No Setup Universe",
+    "Data Issues",
+    "Run Summary",
+    "Portfolio Summary",
+    "State Reconciliation",
+    "Configuration"
+  ],
+  "config_hash_sha256": "ea258c5b5887e83097281dc2af1664fe104d4315b41e46e009393170b3321fe8",
+  "generated_at": "2026-08-24T20:31:46+07:00"
 }
